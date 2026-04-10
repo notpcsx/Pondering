@@ -237,8 +237,12 @@
                 <input id="nick" type="text" placeholder="" autocomplete="off" autocorrect="off" spellcheck="false">
                 <button id="btn">submit</button>
             </div>
-            <div id="thanks" style="display:none">thank you for pondering. ✦</div>
-            <div id="footer">ponder.cool &middot; toronto</div>
+            <div id="thanks" style="display:none">thank you for pondering. ✦
+                <br><br>
+                <a href="https://www.instagram.com/notpcsx/" target="_blank" rel="noopener" style="font-size:11px;font-family:monospace;letter-spacing:.18em;text-transform:uppercase;color:#111;opacity:.45;text-decoration:none">@notpcsx</a>
+            </div>
+            <div id="footer">ponder.quest &middot; toronto</div>
+
         </div>
     </div>
 </div>
@@ -297,7 +301,7 @@
         "i wonder what toronto was like 100 years ago"
     ];
 
-    const LAYER_SIZE  = 15;
+    const LAYER_SIZE  = 10;
     const NUM_LAYERS  = Math.ceil(PHRASES.length / LAYER_SIZE);
     const LAYER_DEPTH = 3.0;
     const FORM_PAGES  = 3;
@@ -444,8 +448,10 @@
         const targetCamDepth = (rawScrollFrac * TOTAL_PAGES) / LAYER_DEPTH;
         smoothCamDepth += (targetCamDepth - smoothCamDepth) * 0.09;
 
-        // On narrow screens bump font size slightly so text is legible
-        const fontScale = W < 420 ? 1.25 : 1.0;
+        // On narrow screens shrink text so phrases don't overlap
+        const fontScale  = W < 500 ? 0.72 : 1.0;
+        // Also reduce drift amplitude on mobile so phrases stay separated
+        const driftScale = W < 500 ? 0.5  : 1.0;
 
         const visibleParts = [];
 
@@ -474,8 +480,8 @@
             const perspFactor = dist >= 0 ? (0.15 + (1 - farness) * 0.85) : 1.0;
 
             particles.filter(p => p.layer === li).forEach(p => {
-                const driftX = Math.sin(t * p.freqX + p.phX) * p.ampX;
-                const driftY = Math.cos(t * p.freqY + p.phY) * p.ampY;
+                const driftX = Math.sin(t * p.freqX + p.phX) * p.ampX * driftScale;
+                const driftY = Math.cos(t * p.freqY + p.phY) * p.ampY * driftScale;
 
                 const basePx = CX + (p.offX * (W * 0.44) + driftX) * perspFactor;
                 const basePy = CY + (p.offY * (H * 0.38) + driftY) * perspFactor;
@@ -540,7 +546,7 @@
                 const dx = visibleParts[a].px - visibleParts[b].px;
                 const dy = visibleParts[a].py - visibleParts[b].py;
                 const d2 = dx*dx + dy*dy;
-                const minD = 110;
+                const minD = W < 500 ? 140 : 110;
                 if (d2 < minD*minD && d2 > 0.1) {
                     const d = Math.sqrt(d2);
                     const f = (minD - d) / minD * 2.2;
