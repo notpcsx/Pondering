@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- viewport-fit=cover lets content reach notch/home-bar edges -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- Chrome on Android toolbar colour -->
+    <meta name="theme-color" content="#ffffff">
+    <!-- iOS standalone PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>ponder.</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+        html,body{
+            width:100%;
+            height:100%;
+            overflow:hidden;
+            background:#fff
+        }
+
+        #wrap{
+            width:100%;
+            /* 100dvh = dynamic viewport height: shrinks when browser chrome shows on iOS/Android */
+            height:100dvh;
+            height:100vh; /* fallback for older browsers */
+            position:relative;
+            overflow:hidden;
+            background:#fff;
+            font-family:Georgia,serif;
+            /* push content above home indicator on notched iPhones */
+            padding-bottom:env(safe-area-inset-bottom)
+        }
+
+        #c{
+            position:absolute;
+            inset:0;
+            display:block
+        }
+
+        #scroller{
+            position:absolute;
+            inset:0;
+            overflow-y:scroll;
+            z-index:10;
+            /* smooth momentum scrolling on iOS */
+            -webkit-overflow-scrolling:touch;
+            /* tell browser only vertical panning happens here */
+            touch-action:pan-y
+        }
+
+        #scroller::-webkit-scrollbar{display:none}
+        #scroller{scrollbar-width:none}
+
+        #track{width:100%}
+
+        #hint{
+            position:absolute;
+            bottom:calc(24px + env(safe-area-inset-bottom));
+            left:0;
+            right:0;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:5px;
+            z-index:20;
+            pointer-events:none;
+            transition:opacity .4s
+        }
+
+        #hint span{
+            font-size:10px;
+            letter-spacing:.22em;
+            text-transform:uppercase;
+            font-family:monospace;
+            color:#111;
+            opacity:.3
+        }
+
+        #form{
+            position:absolute;
+            inset:0;
+            z-index:20;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            /* safe-area padding so nothing hides under the notch or home indicator */
+            padding:
+                    calc(32px + env(safe-area-inset-top))
+                    calc(24px + env(safe-area-inset-right))
+                    calc(32px + env(safe-area-inset-bottom))
+                    calc(24px + env(safe-area-inset-left));
+            pointer-events:none;
+            transition:opacity .5s
+        }
+
+        #form-inner{
+            max-width:420px;
+            width:100%;
+            text-align:center
+        }
+
+        #form h1{
+            font-size:clamp(36px,12vw,72px);
+            font-style:italic;
+            color:#111;
+            letter-spacing:-.025em;
+            line-height:1;
+            margin-bottom:8px
+        }
+
+        #form p{
+            font-size:clamp(13px,3.5vw,15px);
+            font-style:italic;
+            color:#111;
+            opacity:.38;
+            margin-bottom:36px;
+            letter-spacing:.02em
+        }
+
+        /* Shared label above each field */
+        .field-label{
+            display:block;
+            font-size:10px;
+            font-family:monospace;
+            letter-spacing:.18em;
+            text-transform:uppercase;
+            color:#111;
+            opacity:.32;
+            margin-bottom:7px;
+            text-align:left
+        }
+
+        /* Shared field base — applied to both textarea and nick input */
+        #form textarea,
+        #form input#nick{
+            width:100%;
+            background:transparent;
+            border:none;
+            border-bottom:1px solid #111;
+            outline:none;
+            color:#111;
+            font-size:16px;
+            font-family:Georgia,serif;
+            font-style:italic;
+            padding:8px 0;
+            display:block;
+            opacity:.8;
+            caret-color:#888;
+            touch-action:manipulation;
+            margin-bottom:24px
+        }
+
+        #form textarea{
+            resize:none;
+            line-height:1.6
+        }
+
+        #form textarea:focus,
+        #form input#nick:focus{
+            border-bottom-color:#888;
+            opacity:1
+        }
+
+        #form button{
+            background:transparent;
+            border:1px solid #111;
+            color:#111;
+            font-size:11px;
+            letter-spacing:.22em;
+            text-transform:uppercase;
+            font-family:monospace;
+            /* taller tap target for fingers */
+            padding:16px 48px;
+            cursor:pointer;
+            opacity:.28;
+            transition:opacity .2s,background .2s,color .2s;
+            touch-action:manipulation;
+            /* min tap target size (WCAG 2.5.5) */
+            min-height:48px
+        }
+
+        #form button.active{opacity:1}
+
+        /* hover only on devices that actually hover — avoids sticky hover on touch */
+        @media(hover:hover){
+            #form button.active:hover{background:#111;color:#fff}
+        }
+
+        #thanks{
+            font-size:clamp(14px,4vw,16px);
+            font-style:italic;
+            color:#111;
+            opacity:.45;
+            line-height:1.7
+        }
+
+        #footer{
+            margin-top:44px;
+            font-size:10px;
+            color:#111;
+            opacity:.15;
+            letter-spacing:.18em;
+            text-transform:uppercase;
+            font-family:monospace
+        }
+
+        @keyframes bob{
+            0%,100%{transform:translateY(0)}
+            50%{transform:translateY(4px)}
+        }
+    </style>
+</head>
+<body>
+
+<div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="scroller"><div id="track"></div></div>
+
+    <div id="hint">
+        <span>scroll</span>
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style="animation:bob 1.7s ease-in-out infinite">
+            <path d="M5.5 1v9M2 6.5l3.5 3.5L9 6.5" stroke="#111" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity=".32"/>
+        </svg>
+    </div>
+
+    <div id="form" style="opacity:0">
+        <div id="form-inner">
+            <h1>ponder.</h1>
+            <p>What's on your mind?</p>
+            <div id="input-area">
+                <label class="field-label" for="ta">your pondering</label>
+                <textarea id="ta" rows="2" placeholder="i've been thinking about..."></textarea>
+                <label class="field-label" for="nick">your nickname <span style="opacity:.6">(optional)</span></label>
+                <input id="nick" type="text" placeholder="" autocomplete="off" autocorrect="off" spellcheck="false">
+                <button id="btn">submit</button>
+            </div>
+            <div id="thanks" style="display:none">thank you for pondering. ✦</div>
+            <div id="footer">ponder.cool &middot; toronto</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const PHRASES = [
+        "why do i always feel behind",
+        "what if this is enough",
+        "does anyone actually know what they're doing",
+        "i miss who i was at 17",
+        "what would i do if i wasn't afraid",
+        "is the moon the same moon everyone else sees",
+        "i think about parallel versions of myself a lot",
+        "why does music sound better at night",
+        "do trees feel the seasons change",
+        "i wonder if my cat is happy",
+        "what does home actually mean",
+        "i keep meaning to call my dad",
+        "am i the same person i was last year",
+        "why is it so hard to just sit still",
+        "what if nothing is wrong and i just forgot",
+        "i wish i had more photos of ordinary days",
+        "does anyone else feel the weight of sunday",
+        "what are strangers on the subway thinking",
+        "i think i peaked at 24 and i'm okay with that",
+        "the smell of rain feels like a memory",
+        "why do some days feel longer than others",
+        "what if kindness is the whole point",
+        "i wonder if birds get bored",
+        "do other people narrate their own life too",
+        "what's the opposite of nostalgia",
+        "i think about the ocean more than i should",
+        "why is saying sorry so hard sometimes",
+        "what would i tell my younger self",
+        "is everyone performing or just me",
+        "i want to exist without explaining myself",
+        "why does time feel different in summer",
+        "what if i'm already living my best chapter",
+        "do we choose who we love or does it just happen",
+        "i think about death in a curious not scary way",
+        "what's a memory that only i have",
+        "why do cities feel lonely at 2am",
+        "i want to grow something with my hands",
+        "what if the point is the people not the places",
+        "i wonder if future me is proud",
+        "does anyone else feel like a tourist in their own life",
+        "what would i do with one completely free day",
+        "why is it easier to be kind to strangers",
+        "i think about the universe when i can't sleep",
+        "what colour would today be",
+        "i want to say more and mean it",
+        "why do we never really say goodbye properly",
+        "what are the things i take for granted",
+        "i'm still figuring out who i am at 31",
+        "what does it feel like to be fully present",
+        "i wonder what toronto was like 100 years ago"
+    ];
+
+    const LAYER_SIZE  = 15;
+    const NUM_LAYERS  = Math.ceil(PHRASES.length / LAYER_SIZE);
+    const LAYER_DEPTH = 3.0;
+    const FORM_PAGES  = 3;
+    const TOTAL_PAGES = NUM_LAYERS * LAYER_DEPTH + FORM_PAGES;
+    const FORM_THR    = 1 - FORM_PAGES / TOTAL_PAGES;
+
+    function srand(seed) {
+        let s = seed;
+        return () => { s = (s * 16807) % 2147483647; return (s-1)/2147483646; };
+    }
+
+    function easeOutQuart(x) {
+        return 1 - Math.pow(1 - x, 4);
+    }
+
+    const particles = PHRASES.map((text, i) => {
+        const r = srand(i * 41 + 17);
+        r(); r(); r();
+        const layer = Math.floor(i / LAYER_SIZE);
+        return {
+            text, layer,
+            offX:  (r() - 0.5) * 1.6,
+            offY:  (r() - 0.5) * 1.2,
+            fontSize:    r() * 6 + 13,
+            baseOpacity: r() * 0.3 + 0.45,
+            ampX:   r() * 60 + 20,
+            ampY:   r() * 40 + 15,
+            freqX:  r() * 0.0006 + 0.00015,
+            freqY:  r() * 0.0005 + 0.00012,
+            phX:    r() * Math.PI * 2,
+            phY:    r() * Math.PI * 2,
+            sepX: 0, sepY: 0,
+            velX: 0, velY: 0,
+            introDelay: layer === 0 ? (i % LAYER_SIZE) * 12 + 15 : 9999,
+        };
+    });
+
+    // Pre-layout relaxation
+    for (let iter = 0; iter < 120; iter++) {
+        for (let li = 0; li < NUM_LAYERS; li++) {
+            const lp = particles.filter(p => p.layer === li);
+            for (let a = 0; a < lp.length; a++) {
+                for (let b = a + 1; b < lp.length; b++) {
+                    const dx = lp[a].offX - lp[b].offX;
+                    const dy = (lp[a].offY - lp[b].offY) * 0.6;
+                    const d2 = dx*dx + dy*dy;
+                    const minD = 0.28;
+                    if (d2 < minD*minD && d2 > 0.0001) {
+                        const d = Math.sqrt(d2);
+                        const push = (minD - d) / (d * 2) * 0.30;
+                        lp[a].offX += dx * push;   lp[a].offY += (dy/0.6) * push;
+                        lp[b].offX -= dx * push;   lp[b].offY -= (dy/0.6) * push;
+                    }
+                }
+            }
+            lp.forEach(p => {
+                p.offX = Math.max(-0.92, Math.min(0.92, p.offX));
+                p.offY = Math.max(-0.72, Math.min(0.72, p.offY));
+            });
+        }
+    }
+
+    const canvas    = document.getElementById('c');
+    const ctx       = canvas.getContext('2d');
+    const wrap      = document.getElementById('wrap');
+    const scroller  = document.getElementById('scroller');
+    const track     = document.getElementById('track');
+    const hint      = document.getElementById('hint');
+    const form      = document.getElementById('form');
+    const ta        = document.getElementById('ta');
+    const nick      = document.getElementById('nick');
+    const btn       = document.getElementById('btn');
+    const thanks    = document.getElementById('thanks');
+    const inputArea = document.getElementById('input-area');
+
+    let rawScrollFrac  = 0;
+    let smoothCamDepth = 0;
+    let t = 0;
+
+    function resize() {
+        const W   = wrap.clientWidth;
+        const H   = wrap.clientHeight;
+        const DPR = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width  = W * DPR;
+        canvas.height = H * DPR;
+        canvas.style.width  = W + 'px';
+        canvas.style.height = H + 'px';
+        track.style.height  = (TOTAL_PAGES * 100) + 'vh';
+    }
+
+    new ResizeObserver(resize).observe(wrap);
+    resize();
+
+    let snapTimer = null;
+    scroller.addEventListener('scroll', () => {
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        rawScrollFrac = max > 0
+            ? Math.min(Math.max(scroller.scrollTop / max, 0), 1)
+            : 0;
+        if (rawScrollFrac > FORM_THR) {
+            clearTimeout(snapTimer);
+            snapTimer = setTimeout(() => {
+                scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' });
+            }, 350);
+        }
+    }, { passive: true });
+
+    ta.addEventListener('input', () => {
+        btn.classList.toggle('active', ta.value.trim().length > 0);
+    });
+    ta.addEventListener('focus', () => { ta.style.borderBottomColor='#888'; ta.style.opacity='1'; });
+    ta.addEventListener('blur',  () => { ta.style.borderBottomColor='#111'; ta.style.opacity='.8'; });
+
+    // Paste your deployed Apps Script web app URL here
+    const SHEET_URL = 'https://script.google.com/macros/s/AKfycbyShX6kYLY4mhjV6zoZRgUN8eP1cbFQuv44fU_Q1SnBoL46lOng3oe-gMi6xXAoCkIQVQ/exec';
+
+    btn.addEventListener('click', () => {
+        const text = ta.value.trim();
+        if (!text) return;
+        inputArea.style.display = 'none';
+        thanks.style.display    = 'block';
+        fetch(SHEET_URL, {
+            method:  'POST',
+            mode:    'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ timestamp: new Date().toISOString(), wizardName: nick.value.trim(), value: text }),
+        }).catch(() => {});
+    });
+
+    function draw() {
+        requestAnimationFrame(draw);
+        t++;
+
+        const DPR = Math.min(window.devicePixelRatio || 1, 2);
+        const W   = canvas.width  / DPR;
+        const H   = canvas.height / DPR;
+        const CX  = W / 2;
+        const CY  = H / 2;
+
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, W, H);
+
+        const targetCamDepth = (rawScrollFrac * TOTAL_PAGES) / LAYER_DEPTH;
+        smoothCamDepth += (targetCamDepth - smoothCamDepth) * 0.09;
+
+        // On narrow screens bump font size slightly so text is legible
+        const fontScale = W < 420 ? 1.25 : 1.0;
+
+        const visibleParts = [];
+
+        for (let li = NUM_LAYERS - 1; li >= 0; li--) {
+            const dist = li - smoothCamDepth;
+            if (dist > 1.8 || dist < -0.85) continue;
+
+            const farness = Math.max(0, Math.min(1, dist / 1.8));
+
+            let layerOpacity;
+            if (dist >= 0) {
+                layerOpacity = 0.25 + (1 - farness) * 0.75;
+            } else {
+                layerOpacity = Math.max(0, 1 + dist * 2.8);
+            }
+            if (layerOpacity < 0.015) continue;
+
+            const blurFar  = dist >= 0 ? Math.max(0, farness - 0.25) * 14 : 0;
+            const blurPast = dist <  0 ? Math.min(Math.abs(dist) * 14, 16) : 0;
+            const blurPx   = Math.max(blurFar, blurPast);
+
+            const scaleBoost = dist < 0
+                ? 1 + Math.abs(dist) * 3.0
+                : 0.2 + (1 - farness) * 0.8;
+
+            const perspFactor = dist >= 0 ? (0.15 + (1 - farness) * 0.85) : 1.0;
+
+            particles.filter(p => p.layer === li).forEach(p => {
+                const driftX = Math.sin(t * p.freqX + p.phX) * p.ampX;
+                const driftY = Math.cos(t * p.freqY + p.phY) * p.ampY;
+
+                const basePx = CX + (p.offX * (W * 0.44) + driftX) * perspFactor;
+                const basePy = CY + (p.offY * (H * 0.38) + driftY) * perspFactor;
+
+                let edgeX = 0, edgeY = 0;
+                if (dist < 0) {
+                    const ox = p.offX, oy = p.offY || 0.1;
+                    const len = Math.sqrt(ox*ox + oy*oy) || 1;
+                    const push = Math.abs(dist) * Math.max(W, H) * 0.62;
+                    edgeX = (ox/len) * push;
+                    edgeY = (oy/len) * push;
+                }
+                const bpx = basePx + edgeX;
+                const bpy = basePy + edgeY;
+
+                let px = bpx + p.sepX;
+                let py = bpy + p.sepY;
+
+                // Keep active/approaching layers on screen — passed layers intentionally fly off
+                if (dist >= 0) {
+                    const nx = Math.max(W * 0.08, Math.min(W * 0.92, px));
+                    const ny = Math.max(H * 0.05, Math.min(H * 0.95, py));
+                    p.sepX += nx - px;
+                    p.sepY += ny - py;
+                    px = nx; py = ny;
+                }
+
+                let alpha  = p.baseOpacity * layerOpacity;
+                let fontPx = p.fontSize * scaleBoost * fontScale;
+
+                if (li === 0) {
+                    const progress = Math.max(0, Math.min(1, (t - p.introDelay) / 70));
+                    if (progress < 1) {
+                        fontPx *= easeOutQuart(progress);
+                        alpha  *= Math.min(1, progress * 2.5);
+                        if (fontPx < 0.5) return;
+                    }
+                }
+
+                if (alpha < 0.01) return;
+
+                ctx.save();
+                ctx.globalAlpha  = alpha;
+                ctx.textAlign    = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font         = `italic ${fontPx.toFixed(1)}px Georgia, serif`;
+                ctx.fillStyle    = '#111';
+                if (blurPx > 0.4) {
+                    try { ctx.filter = `blur(${blurPx.toFixed(1)}px)`; } catch(e) {}
+                }
+                ctx.fillText(p.text, px, py);
+                ctx.restore();
+                try { ctx.filter = 'none'; } catch(e) {}
+
+                visibleParts.push({p, px, py, li});
+            });
+        }
+
+        for (let a = 0; a < visibleParts.length; a++) {
+            for (let b = a + 1; b < visibleParts.length; b++) {
+                if (visibleParts[a].li !== visibleParts[b].li) continue;
+                const dx = visibleParts[a].px - visibleParts[b].px;
+                const dy = visibleParts[a].py - visibleParts[b].py;
+                const d2 = dx*dx + dy*dy;
+                const minD = 110;
+                if (d2 < minD*minD && d2 > 0.1) {
+                    const d = Math.sqrt(d2);
+                    const f = (minD - d) / minD * 2.2;
+                    const fx = dx/d * f, fy = dy/d * f;
+                    visibleParts[a].p.velX += fx;  visibleParts[a].p.velY += fy;
+                    visibleParts[b].p.velX -= fx;  visibleParts[b].p.velY -= fy;
+                }
+            }
+        }
+
+        // No sep decay — separation is maintained by the repulsion force alone; only velocity damps
+        visibleParts.forEach(({p}) => {
+            p.sepX += p.velX;
+            p.sepY += p.velY;
+            p.velX *= 0.68;
+            p.velY *= 0.68;
+        });
+
+        const formOp = Math.max(0, Math.min(1, (rawScrollFrac - FORM_THR) / ((1 - FORM_THR) * 0.55)));
+        form.style.opacity       = formOp;
+        form.style.pointerEvents = formOp > 0.05 ? 'auto' : 'none';
+        form.style.transform     = `translateY(${(1 - formOp) * 24}px)`;
+
+        hint.style.opacity = Math.max(0, 1 - rawScrollFrac * 16);
+    }
+
+    draw();
+</script>
+</body>
+</html>
