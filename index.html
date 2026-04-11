@@ -66,7 +66,9 @@
             gap:5px;
             z-index:20;
             pointer-events:none;
-            transition:opacity .4s
+            transition:opacity .4s;
+            animation:bob 4s ease-out 3.2s infinite;
+            animation-fill-mode:backwards
         }
 
         #hint span{
@@ -75,7 +77,7 @@
             text-transform:uppercase;
             font-family:monospace;
             color:#111;
-            opacity:.3
+            opacity:.65
         }
 
         #form{
@@ -208,8 +210,13 @@
         }
 
         @keyframes bob{
-            0%,100%{transform:translateY(0)}
-            50%{transform:translateY(4px)}
+            0%       { transform:translateY(0) }
+            8%       { transform:translateY(-15px) }
+            18%      { transform:translateY(7px) }
+            27%      { transform:translateY(-9px) }
+            36%      { transform:translateY(4px) }
+            43%      { transform:translateY(-4px) }
+            50%,100% { transform:translateY(0) }
         }
     </style>
 </head>
@@ -221,8 +228,8 @@
 
     <div id="hint">
         <span>scroll</span>
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style="animation:bob 1.7s ease-in-out infinite">
-            <path d="M5.5 1v9M2 6.5l3.5 3.5L9 6.5" stroke="#111" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity=".32"/>
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M5.5 1v9M2 6.5l3.5 3.5L9 6.5" stroke="#111" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>
         </svg>
     </div>
 
@@ -374,6 +381,7 @@
     let rawScrollFrac  = 0;
     let smoothCamDepth = 0;
     let t = 0;
+    let hasScrolled    = false;
 
     function resize() {
         const W   = wrap.clientWidth;
@@ -395,6 +403,7 @@
         rawScrollFrac = max > 0
             ? Math.min(Math.max(scroller.scrollTop / max, 0), 1)
             : 0;
+        if (!hasScrolled && scroller.scrollTop > 0) hasScrolled = true;
         if (rawScrollFrac > FORM_THR) {
             clearTimeout(snapTimer);
             snapTimer = setTimeout(() => {
@@ -564,7 +573,13 @@
         form.style.pointerEvents = formOp > 0.05 ? 'auto' : 'none';
         form.style.transform     = `translateY(${(1 - formOp) * 24}px)`;
 
-        hint.style.opacity = Math.max(0, 1 - rawScrollFrac * 16);
+        if (!hasScrolled) {
+            hint.style.opacity = 1;
+        } else {
+            // dim to a subtle reminder after first scroll, fade fully when form arrives
+            const nearForm = Math.max(0, (rawScrollFrac - FORM_THR) / (1 - FORM_THR));
+            hint.style.opacity = Math.max(0, 0.18 - nearForm * 0.18);
+        }
     }
 
     draw();
