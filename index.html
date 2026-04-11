@@ -568,6 +568,26 @@
             p.velY *= 0.68;
         });
 
+        // "ponder." teaser: blurred dot that sharpens as user approaches the form
+        const teaserStart = FORM_THR - 0.28;
+        if (rawScrollFrac > teaserStart) {
+            const formOp_ = Math.max(0, Math.min(1, (rawScrollFrac - FORM_THR) / ((1 - FORM_THR) * 0.55)));
+            const prog     = Math.min(1, (rawScrollFrac - teaserStart) / (FORM_THR - teaserStart));
+            const blurPx   = (1 - prog) * 26;
+            const alpha    = prog * 0.5 * (1 - formOp_);
+            const fSize    = Math.min(72, Math.max(36, W * 0.12));
+            ctx.save();
+            ctx.globalAlpha  = alpha;
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font         = `italic ${fSize.toFixed(1)}px Georgia, serif`;
+            ctx.fillStyle    = '#111';
+            if (blurPx > 0.4) { try { ctx.filter = `blur(${blurPx.toFixed(1)}px)`; } catch(e) {} }
+            ctx.fillText('ponder.', CX, CY);
+            ctx.restore();
+            try { ctx.filter = 'none'; } catch(e) {}
+        }
+
         const formOp = Math.max(0, Math.min(1, (rawScrollFrac - FORM_THR) / ((1 - FORM_THR) * 0.55)));
         form.style.opacity       = formOp;
         form.style.pointerEvents = formOp > 0.05 ? 'auto' : 'none';
